@@ -58,16 +58,15 @@ def problem_1c(show=True):
     )
 
     x = df.diff()
-    print(df.diff())
+    print(df.size)
 
-    auto_correlation = sm.tsa.acf(x)
+    auto_correlation = sm.tsa.acf(x, missing="drop")
     print(auto_correlation)
+    print(len(auto_correlation))
 
-    # fig = tsaplots.plot_acf(x)
+    fig = tsaplots.plot_acf(x, missing="drop")
 
     # df.diff().plot()
-
-    plot_pacf(x, lags=1)
 
     if show:
         plt.show()
