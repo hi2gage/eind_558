@@ -9,6 +9,7 @@ import datetime
 from sklearn.metrics import mean_squared_error
 import numpy as np
 from scipy.stats import boxcox
+from datetime import datetime, timedelta
 
 
 import warnings
@@ -54,42 +55,66 @@ def main(show=True):
     close_data = df["Close"]
     close_data_14 = close_data.rolling(window=10).mean()
 
-    df["Close"].plot(figsize=(20, 5))
-    plt.plot(close_data_14, "r-", label="Running average 14 Days")
-    # plt.xlabel("Date")
-    plt.grid(linestyle=":")
-    # plt.fill_between(co2.index, 0, co2, color="r", alpha=0.1)
-    plt.legend(loc="upper left")
-    plt.show()
+    # df["Close"].plot(figsize=(20, 5))
+    # plt.plot(close_data_14, "r-", label="Running average 14 Days")
+    # # plt.xlabel("Date")
+    # plt.grid(linestyle=":")
+    # # plt.fill_between(co2.index, 0, co2, color="r", alpha=0.1)
+    # plt.legend(loc="upper left")
+    # plt.show()
 
-    train = df["2019-12-26":"2020-12-31"]  # first 120 Days as training set
+    # Part 1
+    train_start = "12-26-2019"
+    train_end = "12-31-2020"
+    test_end = "4-10-2021"
+
+    # Part 3
+    # train_start = "1-1-2021"
+    # train_end = "7-31-2021"
+    # test_end = "9-25-2021"
+
+    train_end_minus_one = datetime.strptime(train_end, "%M-%d-%Y") - timedelta(
+        days=1
+    )
+    train_end_minus_one = train_end_minus_one.strftime("%M-%d-%Y")
+
+    test_end_minus_one = datetime.strptime(test_end, "%M-%d-%Y") - timedelta(
+        days=1
+    )
+    # test_end_minus_one = test_end_minus_one.strftime("%-d-%M-%Y")
+
+    print(train_end)
+    print(train_end_minus_one)
+
+    train = df[train_start:train_end]
+    # train = df["2019-12-26":"2020-12-31"]
     train_len = train.shape[0]
-    test = df[train_len:]  # last 24 months as out-of-time test set
+    test = df[train_end:test_end]
 
     data_boxcox = pd.Series(boxcox(df["Close"], lmbda=0), index=df.index)
 
-    plt.grid()
-    plt.plot(data_boxcox, label="After Box Cox tranformation")
-    plt.legend(loc="best")
-    plt.title("After Box Cox transform")
-    plt.show()
+    # plt.grid()
+    # plt.plot(data_boxcox, label="After Box Cox tranformation")
+    # plt.legend(loc="best")
+    # plt.title("After Box Cox transform")
+    # plt.show()
 
     data_boxcox_diff = pd.Series(data_boxcox - data_boxcox.shift(), df.index)
-    plt.figure(figsize=(20, 5))
-    plt.grid()
-    plt.plot(
-        data_boxcox_diff, label="After Box Cox tranformation and differencing"
-    )
-    plt.legend(loc="best")
-    plt.title("After Box Cox transform and differencing")
-    plt.show()
+    # plt.figure(figsize=(20, 5))
+    # plt.grid()
+    # plt.plot(
+    #     data_boxcox_diff, label="After Box Cox tranformation and differencing"
+    # )
+    # plt.legend(loc="best")
+    # plt.title("After Box Cox transform and differencing")
+    # plt.show()
 
     data_boxcox_diff.dropna(inplace=True)
 
-    train_data_boxcox = data_boxcox[:train_len]
-    test_data_boxcox = data_boxcox[train_len:]
-    train_data_boxcox_diff = data_boxcox_diff[: train_len - 1]
-    test_data_boxcox_diff = data_boxcox_diff[train_len - 1 :]
+    train_data_boxcox = data_boxcox[train_start:train_end]
+    test_data_boxcox = data_boxcox[train_end:]
+    train_data_boxcox_diff = data_boxcox_diff[:train_end_minus_one]
+    test_data_boxcox_diff = data_boxcox_diff[train_end_minus_one:test_end]
 
     model = sm.tsa.arima.ARIMA(train_data_boxcox_diff, order=(0, 0, 14))
     model_fit = model.fit()
@@ -110,10 +135,10 @@ def main(show=True):
     plt.figure(figsize=(20, 5))
 
     plt.grid()
-    plt.plot(df["Close"][:train_len], label="Train")
-    plt.plot(df["Close"][train_len:], label="Test")
+    plt.plot(df["Close"][train_start:train_end], label="Train")
+    plt.plot(df["Close"][train_end:test_end], label="Test")
     plt.plot(
-        y_hat_ma["ma_forecast"][test.index.min() :],
+        y_hat_ma["ma_forecast"][test.index.min() : test_end],
         label="Moving average forecast",
     )
     plt.legend(loc="best")
@@ -122,12 +147,15 @@ def main(show=True):
 
     rmse = np.sqrt(
         mean_squared_error(
-            test["Close"], y_hat_ma["ma_forecast"][test.index.min() :]
+            test["Close"], y_hat_ma["ma_forecast"][test.index.min() : test_end]
         )
     ).round(2)
     mape = np.round(
         np.mean(
-            np.abs(test["Close"] - y_hat_ma["ma_forecast"][test.index.min() :])
+            np.abs(
+                test["Close"]
+                - y_hat_ma["ma_forecast"][test.index.min() : test_end]
+            )
             / test["Close"]
         )
         * 100,
