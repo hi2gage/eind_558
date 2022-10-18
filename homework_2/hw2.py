@@ -5,7 +5,6 @@ from statsmodels.graphics import tsaplots
 import matplotlib.pyplot as plt
 from pandas import Series
 from statsmodels.graphics.tsaplots import plot_pacf
-import statsmodels.api as sm
 import seaborn as sns
 
 
