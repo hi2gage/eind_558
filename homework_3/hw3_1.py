@@ -112,12 +112,56 @@ def problem_4_20():
     plt.savefig("new_figs/problem_4_20_2.png")
 
 
+def problem_4_48():
+    df = pd.read_excel("HW3_data_4_48.xlsx", sheet_name=0)
+
+    df = df["Positive_Tests"]
+
+    date_index = pd.date_range("2003", periods=len(df), freq="W")
+    df.index = date_index
+    # df = df.notnull()
+    print(df.tail(185))
+    print(type(df))
+    print(df.min())
+
+    # fit1 = ExponentialSmoothing(
+    #     df,
+    #     initialization_method="estimated",
+    #     trend="multiplicative",
+    #     seasonal="multiplicative",
+    #     seasonal_periods=52,
+    # ).fit()
+    # fcast1 = fit1.predict(start="2010-12-26", end="2014-06-299").rename(
+    #     r"$\alpha=%s$" % fit1.model.params["smoothing_level"]
+    # )
+
+    # (line1,) = plt.plot(fit1.fittedvalues, color="green")
+    # plt.legend(
+    #     [line1], [r"$\alpha=%s$" % fit1.model.params["smoothing_level"]]
+    # )
+
+    fit2 = Holt(
+        df,
+        exponential=True,
+    ).fit()
+    fit2.forecast(2).plot(marker="o", color="blue", legend=True)
+
+    (line2,) = plt.plot(fit2.fittedvalues, color="green")
+    plt.legend(
+        [line2], [r"$\alpha=%s$" % fit2.model.params["smoothing_level"]]
+    )
+
+    # print(df)
+    df.plot()
+    # plt.show()
+
+
 if __name__ == "__main__":
     # problem_4_1()
     # problem_4_2()
     # problem_4_3()
     # problem_4_10()
 
-    problem_4_20()
-    # problem_4_48()
+    # problem_4_20()
+    problem_4_48()
     # problem_4_52()
