@@ -124,32 +124,34 @@ def problem_4_48():
     print(type(df))
     print(df.min())
 
-    # fit1 = ExponentialSmoothing(
-    #     df,
-    #     initialization_method="estimated",
-    #     trend="multiplicative",
-    #     seasonal="multiplicative",
-    #     seasonal_periods=52,
-    # ).fit()
-    # fcast1 = fit1.predict(start="2010-12-26", end="2014-06-299").rename(
-    #     r"$\alpha=%s$" % fit1.model.params["smoothing_level"]
-    # )
-
-    # (line1,) = plt.plot(fit1.fittedvalues, color="green")
-    # plt.legend(
-    #     [line1], [r"$\alpha=%s$" % fit1.model.params["smoothing_level"]]
-    # )
-
-    fit2 = Holt(
+    fit1 = ExponentialSmoothing(
         df,
-        exponential=True,
+        initialization_method="estimated",
+        trend="multiplicative",
+        seasonal="multiplicative",
+        seasonal_periods=52,
     ).fit()
-    fit2.forecast(2).plot(marker="o", color="blue", legend=True)
-
-    (line2,) = plt.plot(fit2.fittedvalues, color="green")
-    plt.legend(
-        [line2], [r"$\alpha=%s$" % fit2.model.params["smoothing_level"]]
+    fcast1 = fit1.predict(start="2010-01-06", end="2014-06-29").rename(
+        r"$\alpha=%s$" % fit1.model.params["smoothing_level"]
     )
+
+    (line1,) = plt.plot(fit1.fittedvalues, color="green")
+    plt.legend(
+        [line1], [r"$\alpha=%s$" % fit1.model.params["smoothing_level"]]
+    )
+
+    # fit2 = Holt(
+    #     df,
+    #     exponential=True,
+    #     damped_trend=True,
+    #     initialization_method="estimated",
+    # ).fit()
+    # fit2.forecast(2).plot(marker="o", color="blue", legend=True)
+
+    # (line2,) = plt.plot(fit2.fittedvalues, color="green")
+    # plt.legend(
+    #     [line2], [r"$\alpha=%s$" % fit2.model.params["smoothing_level"]]
+    # )
 
     # print(df)
     df.plot()
