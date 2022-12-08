@@ -17,6 +17,7 @@ import missingno as mno
 from darts import TimeSeries, concatenate
 from darts.dataprocessing.transformers import Scaler
 from darts.models import TransformerModel
+from darts.models import NBEATSModel
 from darts.metrics import mape, rmse
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 from darts.utils.likelihood_models import QuantileRegression
@@ -27,10 +28,10 @@ np.set_printoptions(precision=2, suppress=True)
 pd.options.display.float_format = "{:,.2f}".format
 
 
-LOAD = True  # True = load previously saved model from disk?  False = (re)train the model
+LOAD = False  # True = load previously saved model from disk?  False = (re)train the model
 SAVE = "\_TForm_model10e.pth.tar"  # file name to save the model under
 
-EPOCHS = 10
+EPOCHS = 5
 INLEN = 32  # input size
 FEAT = 32  # d_model = number of expected features in the inputs, up to 512
 HEADS = 4  # default 8
@@ -73,31 +74,100 @@ df1 = pd.read_csv("Data/all_data.csv", header=0, parse_dates=["datetime"])
 df1["datetime"] = pd.to_datetime(df1["datetime"], infer_datetime_format=True)
 df1.set_index("datetime", inplace=True)
 
+df1.index.rename("time", inplace=True)
+
+
 print(df1)
 
 print(df1.info())
 print(df1.describe())
-# print("count of duplicates:", df1.duplicated(subset=["datetime"], keep="first").sum())
+df_resampled = df1.copy()
+df_resampled = df1.resample("1D").agg(
+    {
+        "season": "mean",
+        "holiday": "mean",
+        "workingday": "mean",
+        "weather": "mean",
+        "temp": "mean",
+        "atemp": "mean",
+        "humidity": "mean",
+        "windspeed": "mean",
+        "casual": "sum",
+        "registered": "sum",
+        "count": "sum",
+    }
+)
+df_resampled = df_resampled.truncate(after="2012-10-27")
+
+
+print(df_resampled)
+print(df_resampled.info())
+print(df_resampled.describe())
+
+
+# print("count of duplicates:", df1.duplicated(subset=["time"], keep="first").sum())
+
+
+df1_outlier = df_resampled.copy()
+print("=============================================")
+print("count of outliers: largest 10")
+print(df1_outlier["count"].nlargest(20))
+
+print("count of outliers: smallest 10")
+print(df1_outlier["count"].nsmallest(20))
+
+
+df1_outlier["count"].where(df1_outlier["count"] >= 500, inplace=True)
+df1_outlier["count"].where(df1_outlier["count"] != 1009, inplace=True)
+# df1_outlier["pressure"].where(df1_outlier["pressure"] >= 948, inplace=True)
+
+# df1_outlier["wind_speed"].where(df1_outlier["wind_speed"] <= 120, inplace=True)
+# df1_outlier["clouds_all"].where(df1_outlier["clouds_all"] <= 40, inplace=True)
+
+df1_outlier = df1_outlier.interpolate(method="bfill")
+
+print("=============================================")
+print("count of outliers: largest 10")
+print(df1_outlier["count"].nlargest(20))
+
+print("count of outliers: smallest 10")
+print(df1_outlier["count"].nsmallest(20))
+
+
+print(df1_outlier)
+print(df1_outlier.info())
+print(df1_outlier.describe())
+
 
 # plt.figure(100, figsize=(20, 7))
-# sns.lineplot(x="datetime", y="count", data=df1, palette="coolwarm")
+# sns.lineplot(x="time", y="count", data=df1_outlier, palette="coolwarm")
 # plt.show()
+# os.abort()
 
+df2 = df1_outlier.copy()
+# any null values?
+print("any missing values?", df2.isnull().values.any())
 
-df_corr = df1.corr(method="pearson")
+# any ducplicate time periods?
+print("count of duplicates:", df2.duplicated(keep="first").sum())
+
+print("++++++++++++++++++++++++++++++++++++++++++++++==")
+
+# check correlations of features with price
+df_corr = df2.corr(method="pearson")
 print(df_corr.shape)
 print("correlation with count:")
 df_corrP = pd.DataFrame(df_corr["count"].sort_values(ascending=False))
 print(df_corrP)
 
 # highest absolute correlations with count
-print("correlation with count > 0.25:")
+print("correlation with count > 0.15:")
 pd.options.display.float_format = "{:,.2f}".format
-df_corrH = df_corrP[np.abs(df_corrP["count"]) > 0.25]
+df_corrH = df_corrP[np.abs(df_corrP["count"]) > 0.10]
 print(df_corrH)
 
 
-df3 = df1[df_corrH.index]
+df3 = df2[df_corrH.index]
 idx = df3.corr().sort_values("count", ascending=False).index
 df3_sorted = df3.loc[:, idx]
 # sort dataframe columns by their correlation with Appliances
@@ -199,16 +269,9 @@ plt.title("Count by hour by weekday")
 df4 = df3.copy()
 df4.drop(["weekday", "month", "wday", "hour"], inplace=True, axis=1)
 
-temp = df4.index.to_series().diff() > pd.Timedelta("01:00:00")
-df4["A"] = 1 - (temp | temp.shift(1)).astype(int)
-
-print(df4.head())
-print(df4.info())
-print(df4["A"].value_counts())
-
 
 # create time series object for target variable
-ts_P = TimeSeries.from_series(df4["count"], fill_missing_dates=True, freq="H")
+ts_P = TimeSeries.from_series(df4["count"], fill_missing_dates=True)
 
 # check attributes of the time series
 print("components:", ts_P.components)
@@ -223,8 +286,8 @@ print("deterministic:", ts_P.is_deterministic)
 print("univariate:", ts_P.is_univariate)
 
 # create time series object for the feature columns
-df_covF = df4.loc[:, df4.columns != "price"]
-ts_covF = TimeSeries.from_dataframe(df_covF, fill_missing_dates=True, freq="H")
+df_covF = df4.loc[:, df4.columns != "count"]
+ts_covF = TimeSeries.from_dataframe(df_covF, fill_missing_dates=True)
 
 print("=====================================")
 
@@ -300,8 +363,8 @@ print(covF_t.pd_dataframe().iloc[[0, -1]])
 # feature engineering - create time covariates: hour, weekday, month, year, country-specific holidays
 covT = datetime_attribute_timeseries(
     ts_P.time_index,
-    attribute="hour",
-    until=pd.Timestamp("2013-01-04 23:00:00"),
+    attribute="day",
+    until=pd.Timestamp("2012-11-01 00:00:00"),
     one_hot=False,
 )
 covT = covT.stack(
@@ -320,6 +383,8 @@ covT = covT.astype(np.float32)
 
 # train/test split
 covT_train, covT_test = covT.split_after(SPLIT)
+print("covT_train")
+print(covT_train)
 
 
 # rescale the covariates: fitting on the training set
@@ -330,6 +395,7 @@ covT_ttest = scalerT.transform(covT_test)
 covT_t = scalerT.transform(covT)
 
 covT_t = covT_t.astype(np.float32)
+print(covT_t)
 
 
 pd.options.display.float_format = "{:.0f}".format
@@ -342,7 +408,7 @@ model = TransformerModel(
     output_chunk_length=N_FC,
     batch_size=BATCH,
     n_epochs=EPOCHS,
-    model_name="Transformer_price",
+    model_name="Transformer_count",
     nr_epochs_val_period=VALWAIT,
     d_model=FEAT,
     nhead=HEADS,
@@ -359,12 +425,16 @@ model = TransformerModel(
     force_reset=True,
 )
 
+print("s_ttrain.shape:")
+print(ts_ttrain)
+
+
 # training: load a saved model or (re)train
 if LOAD:
     print("have loaded a previously saved model from disk:" + mpath)
     model = TransformerModel.load_model(mpath)  # load previously model from disk
 else:
-    model.fit(ts_ttrain, past_covariates=covT_t, verbose=True)
+    model.fit(ts_ttrain, verbose=True)
     print("have saved the model after training:", mpath)
     model.save_model(mpath)
 
@@ -372,6 +442,7 @@ else:
 ts_tpred = model.predict(
     n=len(ts_ttest), num_samples=N_SAMPLES, n_jobs=N_JOBS, verbose=True
 )
+print(ts_tpred)
 
 
 # retrieve forecast series for chosen quantiles,
@@ -407,3 +478,20 @@ _ = [predQ(ts_tpred, q) for q in QUANTILES]
 col = dfY.pop("Q50")
 dfY.insert(1, col.name, col)
 print(dfY.iloc[np.r_[0:2, -2:0]])
+
+
+print(dfY)
+
+# plot the forecast
+plt.figure(100, figsize=(20, 7))
+sns.set(font_scale=1.3)
+
+p = sns.lineplot(x="time", y="Q50", data=dfY, palette="coolwarm")
+sns.lineplot(x="time", y="Actual", data=dfY, palette="coolwarm")
+# sns.lineplot(x="time", y="Training", data=dfY, palette="coolwarm")
+
+plt.legend(labels=["forecast median price Q50", "actual price"])
+p.set_ylabel("price")
+p.set_xlabel("")
+p.set_title("energy price (test set)")
+plt.show()
