@@ -31,7 +31,7 @@ pd.options.display.float_format = "{:,.2f}".format
 LOAD = False  # True = load previously saved model from disk?  False = (re)train the model
 SAVE = "\_TForm_model10e.pth.tar"  # file name to save the model under
 
-EPOCHS = 5
+EPOCHS = 200
 INLEN = 32  # input size
 FEAT = 32  # d_model = number of expected features in the inputs, up to 512
 HEADS = 4  # default 8
@@ -53,7 +53,7 @@ N_JOBS = 3  # parallel processors to use;  -1 = all processors
 # default quantiles for QuantileRegression
 QUANTILES = [0.01, 0.1, 0.2, 0.5, 0.8, 0.9, 0.99]
 
-SPLIT = 0.9  # train/test %
+SPLIT = 0.90  # train/test %
 
 FIGSIZE = (9, 6)
 
@@ -76,7 +76,10 @@ df1.set_index("datetime", inplace=True)
 
 df1.index.rename("time", inplace=True)
 
-
+# plt.figure(100, figsize=(20, 7))
+# sns.lineplot(x="time", y="count", data=df1, palette="coolwarm")
+# plt.show()
+# os.abort()
 print(df1)
 
 print(df1.info())
@@ -154,6 +157,9 @@ print("count of duplicates:", df2.duplicated(keep="first").sum())
 print("++++++++++++++++++++++++++++++++++++++++++++++==")
 
 # check correlations of features with price
+df2 = df2.drop("registered", axis="columns")
+df2 = df2.drop("casual", axis="columns")
+
 df_corr = df2.corr(method="pearson")
 print(df_corr.shape)
 print("correlation with count:")
@@ -379,6 +385,7 @@ covT = covT.stack(
 
 covT = covT.add_holidays(country_code="ES")
 covT = covT.astype(np.float32)
+covT.drop_columns(["day"])
 
 
 # train/test split
@@ -402,6 +409,24 @@ pd.options.display.float_format = "{:.0f}".format
 print("first and last row of unscaled time covariates:")
 print(covT.pd_dataframe().iloc[[0, -1]])
 
+# combine feature and time covariates along component dimension: axis=1
+ts_cov = ts_covF.concatenate(covT.slice_intersect(ts_covF), axis=1)  # unscaled F+T
+cov_t = covF_t.concatenate(covT_t.slice_intersect(covF_t), axis=1)  # scaled F+T
+cov_t = cov_t.astype(np.float32)
+print("cov_t")
+print(cov_t)
+print("====")
+# cov_ttrain = covF_ttrain.concatenate(
+#     covT_ttrain.slice_intersect(covF_ttrain), axis=1
+# )  # scaled F+T training set
+# cov_ttest = covF_ttest.concatenate(
+#     covT_ttest.slice_intersect(covF_ttest), axis=1
+# )  # scaled F+T test set
+
+
+pd.options.display.float_format = "{:.2f}".format
+print("first and last row of unscaled covariates:")
+ts_cov.pd_dataframe().iloc[[0, -1]]
 
 model = TransformerModel(
     input_chunk_length=INLEN,
@@ -434,7 +459,7 @@ if LOAD:
     print("have loaded a previously saved model from disk:" + mpath)
     model = TransformerModel.load_model(mpath)  # load previously model from disk
 else:
-    model.fit(ts_ttrain, verbose=True)
+    model.fit(ts_ttrain, past_covariates=cov_t, verbose=True)
     print("have saved the model after training:", mpath)
     model.save_model(mpath)
 
@@ -487,11 +512,11 @@ plt.figure(100, figsize=(20, 7))
 sns.set(font_scale=1.3)
 
 p = sns.lineplot(x="time", y="Q50", data=dfY, palette="coolwarm")
-sns.lineplot(x="time", y="Actual", data=dfY, palette="coolwarm")
+sns.lineplot(x="time", y="Actual", data=dfY, palette="r")
 # sns.lineplot(x="time", y="Training", data=dfY, palette="coolwarm")
 
-plt.legend(labels=["forecast median price Q50", "actual price"])
+plt.legend(labels=["forecast median count Q50", "actual count"])
 p.set_ylabel("price")
 p.set_xlabel("")
-p.set_title("energy price (test set)")
+p.set_title("Bike Rental Count per Day (test set)")
 plt.show()

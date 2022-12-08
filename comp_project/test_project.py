@@ -30,7 +30,7 @@ from darts.utils.likelihood_models import QuantileRegression
 LOAD = False  # True = load previously saved model from disk?  False = (re)train the model
 SAVE = "\_test_TForm_model10e.pth.tar"  # file name to save the model under
 
-EPOCHS = 5
+EPOCHS = 150
 INLEN = 32  # input size
 FEAT = 32  # d_model = number of expected features in the inputs, up to 512
 HEADS = 4  # default 8
@@ -496,45 +496,53 @@ pd.options.display.float_format = "{:.0f}".format
 print("first and last row of unscaled time covariates:")
 print(covT.pd_dataframe().iloc[[0, -1]])
 
+from darts.models import NBEATSModel
 
-model = TransformerModel(
+BLOCKS = 64
+LWIDTH = 32
+model = NBEATSModel(
     input_chunk_length=INLEN,
     output_chunk_length=N_FC,
+    num_stacks=BLOCKS,
+    layer_widths=LWIDTH,
     batch_size=BATCH,
     n_epochs=EPOCHS,
-    model_name="Transformer_price",
     nr_epochs_val_period=VALWAIT,
-    d_model=FEAT,
-    nhead=HEADS,
-    num_encoder_layers=ENCODE,
-    num_decoder_layers=DECODE,
-    dim_feedforward=DIM_FF,
-    dropout=DROPOUT,
-    activation=ACTF,
-    random_state=RAND,
-    likelihood=QuantileRegression(quantiles=QUANTILES),
+    likelihood=QuantileRegression(QUANTILES),
     optimizer_kwargs={"lr": LEARN},
-    add_encoders={"cyclic": {"future": ["hour", "dayofweek", "month"]}},
-    save_checkpoints=True,
+    model_name="NBEATS_EnergyES",
+    log_tensorboard=True,
+    generic_architecture=True,
+    random_state=RAND,
     force_reset=True,
+    save_checkpoints=True,
 )
 
 
 # training: load a saved model or (re)train
 if LOAD:
     print("have loaded a previously saved model from disk:" + mpath)
-    model = TransformerModel.load_model(mpath)  # load previously model from disk
+    model = NBEATSModel.load_model(mpath)  # load previously model from disk
 else:
-    model.fit(ts_ttrain, past_covariates=covT_t, verbose=True)
+    model.fit(
+        series=ts_ttrain,
+        past_covariates=covT_t,
+        val_series=ts_ttest,
+        val_past_covariates=covT_t,
+        verbose=True,
+    )
     print("have saved the model after training:", mpath)
     model.save_model(mpath)
 
 
 # testing: generate predictions
 ts_tpred = model.predict(
-    n=len(ts_ttest), num_samples=N_SAMPLES, n_jobs=N_JOBS, verbose=True
+    n=len(ts_ttest),
+    past_covariates=covT_t,
+    num_samples=N_SAMPLES,
+    n_jobs=N_JOBS,
+    verbose=True,
 )
-
 
 # retrieve forecast series for chosen quantiles,
 # inverse-transform each series,
@@ -569,3 +577,7 @@ _ = [predQ(ts_tpred, q) for q in QUANTILES]
 col = dfY.pop("Q50")
 dfY.insert(1, col.name, col)
 print(dfY.iloc[np.r_[0:2, -2:0]])
+
+model = ARIMA(df.value, order=(2, 1, 0))
+    model_fit = model.fit()
+    print(model_fit.summary())
