@@ -85,21 +85,21 @@ print(df1)
 print(df1.info())
 print(df1.describe())
 df_resampled = df1.copy()
-df_resampled = df1.resample("1D").agg(
-    {
-        "season": "mean",
-        "holiday": "mean",
-        "workingday": "mean",
-        "weather": "mean",
-        "temp": "mean",
-        "atemp": "mean",
-        "humidity": "mean",
-        "windspeed": "mean",
-        "casual": "sum",
-        "registered": "sum",
-        "count": "sum",
-    }
-)
+# df_resampled = df1.resample("1D").agg(
+#     {
+#         "season": "mean",
+#         "holiday": "mean",
+#         "workingday": "mean",
+#         "weather": "mean",
+#         "temp": "mean",
+#         "atemp": "mean",
+#         "humidity": "mean",
+#         "windspeed": "mean",
+#         "casual": "sum",
+#         "registered": "sum",
+#         "count": "sum",
+#     }
+# )
 df_resampled = df_resampled.truncate(after="2012-10-27")
 
 
@@ -120,8 +120,8 @@ print("count of outliers: smallest 10")
 print(df1_outlier["count"].nsmallest(20))
 
 
-df1_outlier["count"].where(df1_outlier["count"] >= 500, inplace=True)
-df1_outlier["count"].where(df1_outlier["count"] != 1009, inplace=True)
+# df1_outlier["count"].where(df1_outlier["count"] >= 500, inplace=True)
+# df1_outlier["count"].where(df1_outlier["count"] != 1009, inplace=True)
 # df1_outlier["pressure"].where(df1_outlier["pressure"] >= 948, inplace=True)
 
 # df1_outlier["wind_speed"].where(df1_outlier["wind_speed"] <= 120, inplace=True)
@@ -268,7 +268,8 @@ sns.heatmap(
     annot_kws={"size": 11},
 )
 plt.title("Count by hour by weekday")
-# plt.show()
+plt.show()
+os.abort()
 
 
 # dataframe with price and features only
