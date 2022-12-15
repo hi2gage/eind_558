@@ -578,6 +578,3 @@ col = dfY.pop("Q50")
 dfY.insert(1, col.name, col)
 print(dfY.iloc[np.r_[0:2, -2:0]])
 
-model = ARIMA(df.value, order=(2, 1, 0))
-    model_fit = model.fit()
-    print(model_fit.summary())
